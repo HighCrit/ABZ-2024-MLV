@@ -1,0 +1,7 @@
+nu X(inStartUp: Bool = false, configLoaded: Bool = false, internalCheckingDone: Bool = false) .
+[emitMode(StartUp)]X(true, configLoaded, internalCheckingDone) &&
+[(exists m: OperationMode . emitMode(m)) && !emitMode(StartUp)]X(false, configLoaded, internalCheckingDone) &&
+[loadedConfiguration]X(inStartUp, true, internalCheckingDone) &&
+[internalCheckingComplete]X(inStartUp, configLoaded, true) &&
+[(exists m: OperationMode . emitMode(m)) || loadedConfiguration || internalCheckingComplete]X(inStartUp, configLoaded, internalCheckingDone) &&
+(val(inStartUp && configLoaded && internalCheckingDone) => (mu Y. [!emitMode(SelfTest)]Y && <true>true))

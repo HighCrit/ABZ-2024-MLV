@@ -1,0 +1,5 @@
+nu X(inStandby : Bool = false) .
+[emitMode(StandBy)]X(true) &&
+[(exists m: OperationMode . emitMode(m)) && !emitMode(StandBy)]X(false) &&
+[!(exists m: OperationMode . emitMode(m))]X(inStandby) &&
+(val(inStandby) => [startPSV] mu Y.[!emitMode(PSV)]Y && <true>true)

@@ -1,0 +1,7 @@
+nu X(inMode: Bool = false, inState: ValveState = Closed, outState: ValveState = Open) .
+[emitMode(StartUp) || emitMode(StandBy)]X(true, inState, outState) &&
+[(exists m: OperationMode . emitMode(m)) && !(emitMode(StartUp) || emitMode(StandBy))]X(false, inState, outState) &&
+(forall s: ValveState . [getValveState_c(In, s) || setValveState_c(In, s)]X(inMode, s, outState)) &&
+(forall s: ValveState . [getValveState_c(Out, s) || setValveState_c(Out, s)]X(inMode, inState, s)) &&
+[!((exists m: OperationMode . emitMode(m)) || (exists vid: ValveId . exists s: ValveState . getValveState_c(vid, s) || setValveState_c(vid, s)))]X(inMode, inState, outState) &&
+(val(inMode) => ((val(inState == Closed) || (mu Y.[!setValveState_c(In, Closed)]Y && <true>true)) && (val(outState == Open) || (mu Y.[!setValveState_c(Out, Open)]Y && <true>true))))

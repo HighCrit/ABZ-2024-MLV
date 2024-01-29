@@ -1,0 +1,6 @@
+nu X(isOff: Bool = true, powerButtonPressed: Bool = false) . 
+[emitMode(Off)]X(true, false) &&
+[(exists m: OperationMode . emitMode(m)) && !emitMode(Off)]X(false, powerButtonPressed) &&
+[powerOn]X(isOff, true) &&
+[!((exists m: OperationMode . emitMode(m)) || powerOn)]X(isOff, powerButtonPressed) &&
+(val(isOff && !powerButtonPressed) => [emitMode(StartUp)]false)

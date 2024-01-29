@@ -1,0 +1,6 @@
+nu X(powerButtonPressed: Bool = false, parametersStored: Bool = false) . 
+[powerOff]X(true, parametersStored) &&
+[storeParameters]X(powerButtonPressed, true) &&
+[emitMode(Off)]X(false, false) &&
+[!(powerOn || storeParameters || emitMode(Off))]X(powerButtonPressed, parametersStored) &&
+(val(powerButtonPressed && !parametersStored) => [emitMode(Off)]false)

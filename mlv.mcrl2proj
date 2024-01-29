@@ -1,0 +1,29 @@
+<root>
+ <spec>mlv_multi_cycle.mcrl2</spec>
+ <properties>
+  <property>Deadlock free</property>
+  <property>Scenario_New_patient</property>
+  <property>Scenario_Resume_ventilation</property>
+  <property>Scenario_Error_in_selftest</property>
+  <property>CONT_1</property>
+  <property>CONT_2</property>
+  <property>CONT_3</property>
+  <property>CONT_4_1</property>
+  <property>CONT_4_2</property>
+  <property>CONT_5</property>
+  <property>CONT_6</property>
+  <property>CONT_7</property>
+  <property>CONT_8</property>
+  <property>CONT_9</property>
+  <property>CONT_10</property>
+  <property>CONT_46</property>
+  <property>CONT_11</property>
+  <property>CONT_11_1</property>
+  <property>CONT_13</property>
+  <property>CONT_15</property>
+  <property>CONT_19</property>
+  <property>CONT_21</property>
+  <property>CONT_25</property>
+  <property>CONT_38</property>
+ </properties>
+</root>

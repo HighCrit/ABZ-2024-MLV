@@ -1,0 +1,1 @@
+<!powerOn* . powerOn . !emitMode(StartUp)* . emitMode(StartUp) . !startUpEnded* . startUpEnded . !emitMode(SelfTest)* . emitMode(SelfTest) . !resumeVentilation* . resumeVentilation . !emitMode(StandBy)* . emitMode(StandBy) . !(startPCV || startPSV)*>(<startPCV>true && <startPSV>true)

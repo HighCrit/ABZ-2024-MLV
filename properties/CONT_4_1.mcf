@@ -1,0 +1,5 @@
+nu X(inSelfTest : Bool = false) .
+[emitMode(SelfTest)]X(true) &&
+[(exists m: OperationMode . emitMode(m)) && !emitMode(SelfTest)]X(false) &&
+[!(exists m: OperationMode . emitMode(m))]X(inSelfTest) &&
+(val(inSelfTest) => [selfTestPassed] mu Y.[!emitMode(StandBy)]Y && <true>true)

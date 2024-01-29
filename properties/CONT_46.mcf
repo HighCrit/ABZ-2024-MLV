@@ -1,0 +1,5 @@
+nu X(inFailSafe: Bool = false) .
+[emitMode(FailSafe)]X(true) &&
+[(exists m: OperationMode . emitMode(m)) && !emitMode(FailSafe)]X(false) &&
+[!(exists m: OperationMode . emitMode(m))]X(inFailSafe) &&
+(val(inFailSafe) => [(exists m: OperationMode . emitMode(m)) && !(emitMode(Off) || emitMode(FailSafe))]false)

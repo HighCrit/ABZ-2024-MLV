@@ -1,0 +1,234 @@
+% Sensor Handler
+sort SensorId = struct GasBlender|FlowIndicator1|FlowIndicator2|PEEPvalve|InPressure|ExpPressure|Oxygen;
+
+sort SensorState = struct Working | sFaulty;
+
+% Breathing mode
+sort BreathingPhase = struct Inspiration | InspirationPause | RecruitmentManoever | Expiration | ExpirationPause | ApneaTriggerWindow;
+
+% Valve Handler
+sort ValveId = struct In | Out;
+sort ValveState = struct Open | Closed | Faulty | At ? isAt;
+
+sort OperationMode = struct Off | StartUp | SelfTest | StandBy | PSV | PCV | FailSafe;
+
+act
+	% Sensors
+	getSensorValue_s, getSensorValue_r, getSensorValue_c: SensorId # Int;
+	getSensorState_s, getSensorState_r, getSensorState_c: SensorId # SensorState;
+
+	% Valves
+	setValveState_s, setValveState_r, setValveState_c: ValveId # ValveState;
+	getValveState_s, getValveState_r, getValveState_c: ValveId # ValveState; 
+
+	% Controller
+	loadedConfiguration;
+	internalCheckingComplete;
+	startUpEnded;
+	powerOn;
+	powerOff;
+	error;
+	selfTestPassed;
+	resumeVentilation;
+	startPCV;
+	startPSV;
+	stopVentilation;
+	moveToPSV;
+	apneaLag;
+	storeParameters;
+	emitMode: OperationMode;
+	emitPhase: BreathingPhase;
+proc
+	Controller_Off = powerOn . ControllerSwitcher(StartUp);
+
+	% Start-Up: In start-up mode the controller initializes itself with default configuration parameters (if any),
+	% checks the system memory and the communication of the
+	% controller with the sensors and valves, as well as between
+	% the controller and the GUI. Start-up mode is completed
+	% once the required activities have been completed.
+	Controller_StartUp_Setup = (
+		(powerOff . ControllerSwitcher(Off)) +
+		(setValveState_s(In, Closed) . setValveState_s(Out, Open) . Controller_StartUp(false, false, false, false, false, false, false, false, false, false, false, 0, 0))
+	);
+
+	Controller_StartUp(
+		intCheckingComplete: Bool, configLoaded: Bool,
+		GB_enabled: Bool, FI1_checked: Bool, FI2_checked: Bool, PEEP_checked: Bool, IP_checked: Bool, EP_checked: Bool, O2_checked: Bool, 
+		IN_checked: Bool, OUT_checked: Bool,
+		PS_retries: Int,
+		ADC_retries: Int) = (
+		(PS_retries < 5 && ADC_retries < 5)
+		-> (
+			(powerOff . ControllerSwitcher(Off)) +
+			((intCheckingComplete && configLoaded) -> startUpEnded . ControllerSwitcher(SelfTest)) +
+			(!configLoaded -> loadedConfiguration . Controller_StartUp(intCheckingComplete, true, GB_enabled, FI1_checked, FI2_checked, PEEP_checked, IP_checked, EP_checked, O2_checked, IN_checked, OUT_checked, PS_retries, ADC_retries)) +
+			((GB_enabled && FI1_checked && FI2_checked && PEEP_checked && IP_checked && EP_checked && O2_checked && IN_checked && OUT_checked) 
+				-> internalCheckingComplete . Controller_StartUp(true, configLoaded, GB_enabled, FI1_checked, FI2_checked, PEEP_checked, IP_checked, EP_checked, O2_checked, IN_checked, OUT_checked, PS_retries, ADC_retries)) + 
+			(
+				((!GB_enabled) -> ( 
+					(getSensorState_s(GasBlender, Working) . Controller_StartUp(intCheckingComplete, configLoaded, true, FI1_checked, FI2_checked, PEEP_checked, IP_checked, EP_checked, O2_checked, IN_checked, OUT_checked, PS_retries, ADC_retries)) +
+					(getSensorState_s(GasBlender, sFaulty) . Controller_StartUp(intCheckingComplete, configLoaded, false, FI1_checked, FI2_checked, PEEP_checked, IP_checked, EP_checked, O2_checked, IN_checked, OUT_checked, PS_retries + 1, ADC_retries))
+				)) +
+				((sum s: SensorState . (
+					(!FI1_checked) -> getSensorState_s(FlowIndicator1, s) . Controller_StartUp(intCheckingComplete, configLoaded, GB_enabled, true, FI2_checked, PEEP_checked, IP_checked, EP_checked, O2_checked, IN_checked, OUT_checked, PS_retries, ADC_retries) +
+					(!FI2_checked) -> getSensorState_s(FlowIndicator2, s) . Controller_StartUp(intCheckingComplete, configLoaded, GB_enabled, FI1_checked, true, PEEP_checked, IP_checked, EP_checked, O2_checked, IN_checked, OUT_checked, PS_retries, ADC_retries) +
+					(!PEEP_checked) -> getSensorState_s(PEEPvalve, s) . Controller_StartUp(intCheckingComplete, configLoaded, GB_enabled, FI1_checked, FI2_checked, true, IP_checked, EP_checked, O2_checked, IN_checked, OUT_checked, PS_retries, ADC_retries) +
+					(!IP_checked) -> getSensorState_s(InPressure, s) . Controller_StartUp(intCheckingComplete, configLoaded, GB_enabled, FI1_checked, FI2_checked, PEEP_checked, true, EP_checked, O2_checked, IN_checked, OUT_checked, PS_retries, ADC_retries) +
+					(!EP_checked) -> getSensorState_s(ExpPressure, s) . Controller_StartUp(intCheckingComplete, configLoaded, GB_enabled, FI1_checked, FI2_checked, PEEP_checked, IP_checked, true, O2_checked, IN_checked, OUT_checked, PS_retries, ADC_retries) +
+					(!O2_checked) -> getSensorState_s(Oxygen, s) . Controller_StartUp(intCheckingComplete, configLoaded, GB_enabled, FI1_checked, FI2_checked, PEEP_checked, IP_checked, EP_checked, true, IN_checked, OUT_checked, PS_retries, ADC_retries)
+					)
+				))) +
+				(sum v: ValveState . (
+					(!IN_checked) -> getValveState_s(In, v) . Controller_StartUp(intCheckingComplete, configLoaded, GB_enabled, FI1_checked, FI2_checked, PEEP_checked, IP_checked, EP_checked, O2_checked, true, OUT_checked, PS_retries, ADC_retries) +
+					(!OUT_checked) -> getValveState_s(Out, v) . Controller_StartUp(intCheckingComplete, configLoaded, GB_enabled, FI1_checked, FI2_checked, PEEP_checked, IP_checked, EP_checked, O2_checked, IN_checked, true, PS_retries, ADC_retries)
+				))
+			)
+		<> (
+			ControllerSwitcher(FailSafe)
+		)
+	);
+
+	% Self-Test: in the Self Test mode the controller allows the GUI to do all the operations necessary to perform
+	% the self-test.
+	Controller_SelfTest = (
+		(powerOff . ControllerSwitcher(Off)) +
+		(resumeVentilation . ControllerSwitcher(StandBy)) +
+		(error . ControllerSwitcher(FailSafe)) +
+		(selfTestPassed . ControllerSwitcher(StandBy))
+	);
+
+	% StandBy: In ventilation off, the machine does not
+	% ventilate, the in valve is closed and the out valve is
+	% opened.
+	Controller_StandBy_Setup = (
+		(powerOff . ControllerSwitcher(Off)) +
+		(setValveState_s(In, Closed) . setValveState_s(Out, Open) . Controller_StandBy)
+	);
+
+	Controller_StandBy = (
+		(powerOff . ControllerSwitcher(Off)) +
+		(startPCV . ControllerSwitcher(PCV)) +
+		(startPSV . ControllerSwitcher(PSV)) +
+		(sum sensorId: SensorId . 
+			(sum sensorState: SensorState . (getSensorState_s(sensorId, sensorState) . ((sensorState == sFaulty) ->  ControllerSwitcher(FailSafe) <>  Controller_StandBy)))
+		)
+	);
+
+	% PSV: Pressure Support Ventilation mode is used when the patients are able to
+	% initiate every breath and the machine supports them.
+	Controller_PSV(currPhase: BreathingPhase) = (
+		(stopVentilation . ControllerSwitcher(StandBy)) +
+		(sum sensorId: SensorId . (
+			(sum sensorState: SensorState . (getSensorState_s(sensorId, sensorState) . ((sensorState == sFaulty) ->  ControllerSwitcher(FailSafe) <> Controller_PSV(currPhase)))) +
+			(sum v: Int . getSensorValue_s(sensorId, v) . Controller_PSV(currPhase))
+		)) + 
+		((currPhase == Inspiration) -> emitPhase(Expiration) . Controller_PSV(Expiration)) +
+		((currPhase == Expiration) -> emitPhase(ApneaTriggerWindow) . Controller_PSV(ApneaTriggerWindow)) +
+		((currPhase == ApneaTriggerWindow) -> (
+			(apneaLag . ControllerSwitcher(PCV)) +
+			(emitPhase(Inspiration) . Controller_PSV(Inspiration))
+		))
+	);
+
+	% PCV: Pressure Controlled Ventilation mode is used when patients have no
+	% spontaneous respiration.
+	Controller_PCV(currPhase: BreathingPhase, oldPhase: BreathingPhase, PSVrequested: Bool) = (
+		(PSVrequested && currPhase != Inspiration && oldPhase == Inspiration)
+		-> ControllerSwitcher(PSV)
+		<> (
+			(stopVentilation . ControllerSwitcher(StandBy)) +
+			(moveToPSV . Controller_PCV(currPhase, oldPhase, true)) +
+			(sum sensorId: SensorId . (
+				(sum sensorState: SensorState . (getSensorState_s(sensorId, sensorState) . ((sensorState == sFaulty) ->  ControllerSwitcher(FailSafe) <> Controller_PCV(currPhase, oldPhase, PSVrequested)))) +
+				(sum v: Int . getSensorValue_s(sensorId, v) . Controller_PCV(currPhase, oldPhase, PSVrequested))
+			)) + 
+			(currPhase == Inspiration) -> (
+				(emitPhase(InspirationPause) . Controller_PCV(InspirationPause, currPhase, PSVrequested)) +
+				(emitPhase(RecruitmentManoever) . Controller_PCV(RecruitmentManoever, currPhase, PSVrequested)) +
+				(emitPhase(Expiration) . Controller_PCV(Expiration, currPhase, PSVrequested))
+			) +
+			(currPhase == InspirationPause) -> (
+				(emitPhase(RecruitmentManoever) . Controller_PCV(RecruitmentManoever, currPhase, PSVrequested)) +
+				(emitPhase(Expiration) . Controller_PCV(Expiration, currPhase, PSVrequested))
+			) +
+			((currPhase == RecruitmentManoever) -> emitPhase(Expiration) . Controller_PCV(Expiration, currPhase, PSVrequested)) +
+			((currPhase == Expiration) -> emitPhase(Inspiration) . Controller_PCV(Inspiration, currPhase, PSVrequested))
+		)
+	);
+
+	% Fail-safe: the controller forces input and output valves
+	% to their de-energized states (in valve close and out valve open)
+	Controller_FailSafe =
+		(powerOff . ControllerSwitcher(Off));
+
+	ControllerSwitcher(mode: OperationMode) = (
+		(mode == Off) -> (storeParameters . emitMode(mode) . delta) +
+		(mode == StartUp) -> (emitMode(mode) . Controller_StartUp_Setup) +
+		(mode == SelfTest) -> (emitMode(mode) . Controller_SelfTest) +
+		(mode == StandBy) -> (emitMode(mode) . Controller_StandBy_Setup) +
+		(mode == PSV) -> (emitMode(mode) . Controller_PSV(ApneaTriggerWindow)) +
+		(mode == PCV) -> (emitMode(mode) . emitPhase(Inspiration) . Controller_PCV(Inspiration, Inspiration, false)) +
+		(mode == FailSafe) -> (emitMode(mode) . Controller_FailSafe)
+	);
+
+	Valve(id: ValveId, state: ValveState) =
+    	(sum s: ValveState . setValveState_r(id, s) . Valve(id, s)) +
+	    (getValveState_r(id, state) . Valve(id, state));
+
+	Sensor(id: SensorId, state: SensorState, currVal: Int, minVal: Int, maxVal: Int) = (
+		(state == Working) -> (
+			(getSensorValue_r(id, currVal) . Sensor(id, state, currVal, minVal, maxVal))
+		) +
+		(sum s: SensorState . (s != state) -> (getSensorState_r(id, s) . Sensor(id, s, currVal, minVal, maxVal)))
+	);
+init
+	allow(
+			{
+				% Sensors
+				getSensorValue_c,
+				getSensorState_c,
+
+				% Valves
+				setValveState_c,
+				getValveState_c,
+
+				% Controller
+				loadedConfiguration,
+				internalCheckingComplete,
+				startUpEnded,
+				powerOn,
+				powerOff,
+				error,
+				selfTestPassed,
+				resumeVentilation,
+				startPCV,
+				startPSV,
+				stopVentilation,
+				moveToPSV,
+				apneaLag,
+				storeParameters,
+				emitMode,
+				emitPhase
+			},
+			comm(
+				{
+					% Sensors
+					getSensorValue_s | getSensorValue_r -> getSensorValue_c,
+					getSensorState_s | getSensorState_r -> getSensorState_c,
+
+					% Valves
+					setValveState_s | setValveState_r -> setValveState_c,
+					getValveState_s | getValveState_r -> getValveState_c
+				},
+				Controller_Off 
+				|| Sensor(GasBlender, Working, -1, -1, 6)
+				|| Sensor(FlowIndicator1, Working, -1, -1, 6)
+				|| Sensor(FlowIndicator2, Working, -1, -1, 6)
+				|| Sensor(PEEPvalve, Working, -1, -1, 6)
+				|| Sensor(InPressure, Working, -1, -1, 6)
+				|| Sensor(ExpPressure, Working, -1, -1, 6)
+				|| Sensor(Oxygen, Working , -1, -1, 6)
+				|| Valve(In, Closed)
+				|| Valve(Out, Open)
+			)
+		);

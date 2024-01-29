@@ -1,0 +1,6 @@
+nu X(inPCV: Bool = false, inspHappened: Bool = false) .
+[emitMode(PCV)]X(true, false) &&
+[(exists m: OperationMode . emitMode(m)) && !emitMode(PCV)]X(false, inspHappened) &&
+[emitPhase(Inspiration)]X(inPCV, true) &&
+[!((exists m: OperationMode . emitMode(m)) || emitPhase(Inspiration))]X(inPCV, inspHappened) &&
+(val(inPCV && !inspHappened) => ([(exists b: BreathingPhase . emitPhase(b)) && !emitPhase(Inspiration)]false))
